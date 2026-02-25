@@ -201,7 +201,7 @@ export default function Dashboard() {
         </ul>
 
         <div className="p-4 border-t border-gray-800 text-sm text-gray-500">
-          {!collapsed && "v1.0.0"}
+          {!collapsed && "Made by Atharv Kadole"}
         </div>
       </div>
 
