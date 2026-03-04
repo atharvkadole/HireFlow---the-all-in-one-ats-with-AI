@@ -128,12 +128,12 @@ export default function Login() {
             )}
           </div>
 
-          <p className="text-center mt-4">
+          {/* <p className="text-center mt-4">
             Don't have an account?{" "}
             <Link to="/signup" className="link link-primary">
               Signup
             </Link>
-          </p>
+          </p> */}
         </div>
       </div>
     </div>
