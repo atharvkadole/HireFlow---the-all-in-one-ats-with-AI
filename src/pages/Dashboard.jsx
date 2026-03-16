@@ -3,7 +3,7 @@ import { supabase } from "../main/supabase";
 import { useDispatch, useSelector } from "react-redux";
 import { showSnackbar } from "../slice/uiSlice";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"; // <-- Import Router hooks
-
+import nyxsesLogo from "../assets/nyxses-logo.jpg";
 import {
   HiOutlineHome,
   HiOutlineUsers,
@@ -44,7 +44,7 @@ export default function Dashboard() {
       {/* Sidebar */}
       <div className={`bg-gray-900 text-gray-300 flex flex-col transition-all duration-300 ${collapsed ? "w-20" : "w-64"} shrink-0`}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          {!collapsed && <span className="text-white text-xl font-semibold">HireFlow</span>}
+          {!collapsed && <span className="text-white text-xl font-semibold">CV Match</span>}
           <button className="text-gray-400 hover:text-white" onClick={() => setCollapsed(!collapsed)}>
             <HiOutlineMenuAlt2 size={20} />
           </button>
@@ -59,7 +59,9 @@ export default function Dashboard() {
         </ul>
 
         <div className="p-4 border-t border-gray-800 text-sm text-gray-500">
-          {!collapsed && "Made by Atharv Kadole"}
+          {!collapsed && "Made by Nyxses"}
+          <img src={nyxsesLogo} alt="Nyxses Logo" className="w-6 h-6 inline-block ml-2" />
+
         </div>
       </div>
 
