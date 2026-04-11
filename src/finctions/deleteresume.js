@@ -1,8 +1,5 @@
 import { supabase } from "../main/supabase";
 
-const DEFAULT_DELETE_RESUME_URL =
-  "https://n8n.cvmatch.in/webhook-test/resume-delete";
-
 const deleteResume = async (resumeId) => {
   if (!resumeId) {
     throw new Error("Resume ID is required");
@@ -21,8 +18,11 @@ const deleteResume = async (resumeId) => {
     throw new Error("Not authenticated");
   }
 
-  const deleteUrl =
-    import.meta.env.VITE_DELETE_RESUME_URL || DEFAULT_DELETE_RESUME_URL;
+  const deleteUrl = import.meta.env.VITE_DELETE_RESUME_URL;
+
+  if (!deleteUrl) {
+    throw new Error("Delete resume URL is not configured");
+  }
 
   const response = await fetch(deleteUrl, {
     method: "POST",
