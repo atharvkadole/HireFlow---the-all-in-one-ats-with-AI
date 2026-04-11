@@ -469,17 +469,22 @@
 // }
 
 import { useState, useEffect } from "react";
+import { useDispatch } from "react-redux";
 import { supabase } from "../main/supabase";
+import { showSnackbar } from "../slice/uiSlice";
+import deleteResume from "../finctions/deleteresume";
 
 export default function Candidates() {
   const [resumes, setResumes] = useState([]);
   const [jds, setJds] = useState([]); 
   const [selectedJdId, setSelectedJdId] = useState(""); 
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState("");
   
   const [searchTerm, setSearchTerm] = useState(''); 
   const [skillsInput, setSkillsInput] = useState(''); 
   const [minExperience, setMinExperience] = useState('');
+  const dispatch = useDispatch();
 
   useEffect(() => {
     const fetchDropdownData = async () => {
@@ -604,6 +609,46 @@ export default function Candidates() {
     return url.replace('/upload/', '/upload/fl_attachment/');
   };
 
+  const handleDeleteResume = async (resume) => {
+    const confirmed = window.confirm(
+      `Delete ${resume.name || "this resume"}? This will remove the resume record and its PDF.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingId(resume.id);
+      dispatch(
+        showSnackbar({
+          message: "Deleting resume...",
+          type: "info",
+        })
+      );
+
+      await deleteResume(resume.id);
+
+      dispatch(
+        showSnackbar({
+          message: "Resume deleted successfully!",
+          type: "success",
+        })
+      );
+
+      await fetchResumes();
+    } catch (error) {
+      dispatch(
+        showSnackbar({
+          message: error.message || "Failed to delete resume",
+          type: "error",
+        })
+      );
+    } finally {
+      setDeletingId("");
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto w-full">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
@@ -663,13 +708,23 @@ export default function Candidates() {
             <div className="flex-1">
               <div className="flex items-center gap-4 mb-2">
                 <h3 className="text-xl font-bold text-gray-900">{resume.name}</h3>
-                
-                {resume.resume_url && (
-                  <div className="flex items-center gap-2">
+
+                <div className="flex items-center gap-2">
+                  {resume.resume_url && (
+                    <>
                     <a href={resume.resume_url} target="_blank" rel="noopener noreferrer" className="text-xs bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-100 transition font-medium">View PDF</a>
                     <a href={getDownloadUrl(resume.resume_url)} download={resume.file_name || 'resume.pdf'} className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-md hover:bg-blue-100 transition font-medium">Download</a>
-                  </div>
-                )}
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteResume(resume)}
+                    disabled={deletingId === resume.id}
+                    className="text-xs bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-md hover:bg-red-100 transition font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {deletingId === resume.id ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
               </div>
 
               <p className="text-gray-600 mb-4 font-medium">{resume.current_company} • {resume.total_years_experience} YOE</p>
