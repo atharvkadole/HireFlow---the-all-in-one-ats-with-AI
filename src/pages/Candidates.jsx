@@ -474,6 +474,22 @@ import { supabase } from "../main/supabase";
 import { showSnackbar } from "../slice/uiSlice";
 import deleteResume from "../finctions/deleteresume";
 
+const normalizeSkillInput = (value) =>
+  value
+    .split(",")
+    .map((skill) => skill.trim().toLowerCase())
+    .filter(Boolean);
+
+const matchesSkill = (candidateSkill, targetSkill, matchMode) => {
+  if (matchMode === "strict") {
+    return candidateSkill === targetSkill;
+  }
+
+  return (
+    targetSkill.includes(candidateSkill) || candidateSkill.includes(targetSkill)
+  );
+};
+
 export default function Candidates() {
   const [resumes, setResumes] = useState([]);
   const [jds, setJds] = useState([]); 
@@ -483,7 +499,11 @@ export default function Candidates() {
   
   const [searchTerm, setSearchTerm] = useState(''); 
   const [skillsInput, setSkillsInput] = useState(''); 
+  const [excludeSkillsInput, setExcludeSkillsInput] = useState("");
   const [minExperience, setMinExperience] = useState('');
+  const [matchMode, setMatchMode] = useState("fuzzy");
+  const [requirementRule, setRequirementRule] = useState("rank");
+  const [minimumMatchScore, setMinimumMatchScore] = useState("");
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -519,11 +539,14 @@ export default function Candidates() {
       requiredSkillsArray = (selectedJd.required_skills || []).map(s => s.toLowerCase());
       requiredExpNum = Number(selectedJd.min_experience_years) || 0;
     } else {
-      requiredSkillsArray = skillsInput 
-        ? skillsInput.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
-        : [];
+      requiredSkillsArray = skillsInput ? normalizeSkillInput(skillsInput) : [];
       requiredExpNum = Number(minExperience) || 0;
     }
+
+    const excludedSkillsArray = excludeSkillsInput
+      ? normalizeSkillInput(excludeSkillsInput)
+      : [];
+    const minimumScoreNum = Number(minimumMatchScore) || 0;
 
     // WE REMOVED .overlaps() HERE! 
     // We want the database to return everyone so our smart JS can rank them properly.
@@ -547,26 +570,34 @@ export default function Candidates() {
       if (requiredSkillsArray.length > 0) {
         
         // Find which REQUIRED skills are met
-        const metRequirements = requiredSkillsArray.filter(reqSkill => 
-          candidateSkillsLower.some(candSkill => 
-            reqSkill.includes(candSkill) || candSkill.includes(reqSkill)
+        const metRequirements = requiredSkillsArray.filter((reqSkill) =>
+          candidateSkillsLower.some((candSkill) =>
+            matchesSkill(candSkill, reqSkill, matchMode)
           )
         );
 
         // Find which REQUIRED skills are missing
-        missingSkills = requiredSkillsArray.filter(reqSkill => 
-          !candidateSkillsLower.some(candSkill => 
-            reqSkill.includes(candSkill) || candSkill.includes(reqSkill)
-          )
+        missingSkills = requiredSkillsArray.filter(
+          (reqSkill) =>
+            !candidateSkillsLower.some((candSkill) =>
+              matchesSkill(candSkill, reqSkill, matchMode)
+            )
         );
 
         skillMatchScore = Math.round((metRequirements.length / requiredSkillsArray.length) * 100);
       }
 
       // 2. Determine which specific Candidate skills triggered the match (for UI highlighting)
-      const highlightedCandidateSkills = candidateSkillsLower.filter(candSkill => 
-        requiredSkillsArray.some(reqSkill => 
-          reqSkill.includes(candSkill) || candSkill.includes(reqSkill)
+      const highlightedCandidateSkills = candidateSkillsLower.filter(
+        (candSkill) =>
+          requiredSkillsArray.some((reqSkill) =>
+            matchesSkill(candSkill, reqSkill, matchMode)
+          )
+      );
+
+      const excludedMatches = excludedSkillsArray.filter((excludedSkill) =>
+        candidateSkillsLower.some((candSkill) =>
+          matchesSkill(candSkill, excludedSkill, matchMode)
         )
       );
 
@@ -587,8 +618,23 @@ export default function Candidates() {
         experienceScore,
         overallScore,
         matchedSkills: highlightedCandidateSkills, // Pass to UI for blue highlighting
-        missingSkills 
+        missingSkills,
+        excludedMatches,
       };
+    }).filter((resume) => {
+      if (requirementRule === "all" && requiredSkillsArray.length > 0 && resume.missingSkills.length > 0) {
+        return false;
+      }
+
+      if (resume.excludedMatches.length > 0) {
+        return false;
+      }
+
+      if (minimumScoreNum > 0 && resume.overallScore < minimumScoreNum) {
+        return false;
+      }
+
+      return true;
     });
 
     // Sort from highest score to lowest
@@ -652,7 +698,7 @@ export default function Candidates() {
   return (
     <div className="max-w-6xl mx-auto w-full">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-4 gap-4">
           <h2 className="text-lg font-semibold text-gray-800">Filter & Score Candidates</h2>
           
           <div className="w-1/3">
@@ -668,8 +714,8 @@ export default function Candidates() {
             </select>
           </div>
         </div>
-        
-        <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 ${selectedJdId ? 'opacity-50 pointer-events-none' : ''}`}>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <input 
             type="text" 
             placeholder="Search name or company..." 
@@ -677,11 +723,38 @@ export default function Candidates() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
           />
+          <select
+            value={matchMode}
+            onChange={(e) => setMatchMode(e.target.value)}
+            className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
+          >
+            <option value="fuzzy">Fuzzy Partial Match</option>
+            <option value="strict">Strict Exact Match</option>
+          </select>
+          <select
+            value={requirementRule}
+            onChange={(e) => setRequirementRule(e.target.value)}
+            className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
+          >
+            <option value="rank">Rank by Best Overlap</option>
+            <option value="all">Must Include All Required Skills</option>
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
           <input 
             type="text" 
             placeholder="Required Skills (comma separated)" 
             value={skillsInput}
             onChange={(e) => setSkillsInput(e.target.value)}
+            disabled={Boolean(selectedJdId)}
+            className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition disabled:bg-gray-50 disabled:text-gray-400"
+          />
+          <input
+            type="text"
+            placeholder="Must Not Include Skills"
+            value={excludeSkillsInput}
+            onChange={(e) => setExcludeSkillsInput(e.target.value)}
             className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
           />
           <input 
@@ -689,9 +762,25 @@ export default function Candidates() {
             placeholder="Min Years Experience" 
             value={minExperience}
             onChange={(e) => setMinExperience(e.target.value)}
+            disabled={Boolean(selectedJdId)}
+            className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition disabled:bg-gray-50 disabled:text-gray-400"
+          />
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="Minimum Match Score"
+            value={minimumMatchScore}
+            onChange={(e) => setMinimumMatchScore(e.target.value)}
             className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
           />
         </div>
+
+        {selectedJdId && (
+          <p className="mb-4 text-sm text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+            Using required skills and minimum experience from the selected JD. Search, match mode, excluded skills, and minimum score still apply.
+          </p>
+        )}
         
         <button 
           onClick={fetchResumes}
