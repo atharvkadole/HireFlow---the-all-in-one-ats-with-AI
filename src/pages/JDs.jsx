@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
+import { useDispatch } from "react-redux";
 import { supabase } from "../main/supabase";
+import { showSnackbar } from "../slice/uiSlice";
+import deleteJd from "../finctions/deletejd";
 import JDUploader from "../components/JDUploader";
 
 export default function JDs() {
   const [jds, setJds] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState("");
+  const dispatch = useDispatch();
 
   const fetchJds = async () => {
     setLoading(true);
@@ -28,6 +33,46 @@ export default function JDs() {
   const getDownloadUrl = (url) => {
     if (!url) return "#";
     return url.replace('/upload/', '/upload/fl_attachment/');
+  };
+
+  const handleDeleteJd = async (jd) => {
+    const confirmed = window.confirm(
+      `Delete ${jd.title || "this JD"}? This will remove the JD record and its PDF.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingId(jd.id);
+      dispatch(
+        showSnackbar({
+          message: "Deleting JD...",
+          type: "info",
+        })
+      );
+
+      await deleteJd(jd.id);
+
+      dispatch(
+        showSnackbar({
+          message: "JD deleted successfully!",
+          type: "success",
+        })
+      );
+
+      await fetchJds();
+    } catch (error) {
+      dispatch(
+        showSnackbar({
+          message: error.message || "Failed to delete JD",
+          type: "error",
+        })
+      );
+    } finally {
+      setDeletingId("");
+    }
   };
 
   return (
@@ -54,25 +99,35 @@ export default function JDs() {
                 </div>
 
                 {/* PDF Action Buttons */}
-                {jd.jd_url && (
-                  <div className="flex items-center gap-2">
-                    <a 
-                      href={jd.jd_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-xs bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-100 transition font-medium"
-                    >
-                      View PDF
-                    </a>
-                    <a 
-                      href={getDownloadUrl(jd.jd_url)} 
-                      download={jd.file_name || 'JD.pdf'} 
-                      className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-md hover:bg-blue-100 transition font-medium"
-                    >
-                      Download
-                    </a>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  {jd.jd_url && (
+                    <>
+                      <a 
+                        href={jd.jd_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs bg-gray-50 text-gray-700 border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-100 transition font-medium"
+                      >
+                        View PDF
+                      </a>
+                      <a 
+                        href={getDownloadUrl(jd.jd_url)} 
+                        download={jd.file_name || 'JD.pdf'} 
+                        className="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-md hover:bg-blue-100 transition font-medium"
+                      >
+                        Download
+                      </a>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteJd(jd)}
+                    disabled={deletingId === jd.id}
+                    className="text-xs bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-md hover:bg-red-100 transition font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {deletingId === jd.id ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
               </div>
 
               {/* Experience & Summary */}
