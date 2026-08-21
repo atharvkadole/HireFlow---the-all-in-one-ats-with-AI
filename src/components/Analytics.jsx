@@ -121,6 +121,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../main/supabase";
+import { fetchSupabasePages } from "../main/supabasePagination";
 import {
   HiOutlineUsers,
   HiOutlineDocumentText,
@@ -138,30 +139,13 @@ export default function Analytics() {
 
   const [loading, setLoading] = useState(true);
 
-  // Fetch all resumes in batches of 1000
   const fetchAllResumes = async () => {
-    const pageSize = 1000;
-    let from = 0;
-    let allResumes = [];
-
-    while (true) {
-      const { data, error } = await supabase
+    return fetchSupabasePages((from, to) =>
+      supabase
         .from("resumes")
         .select("total_years_experience, skills")
-        .range(from, from + pageSize - 1);
-
-      if (error) throw error;
-
-      if (!data || data.length === 0) break;
-
-      allResumes.push(...data);
-
-      if (data.length < pageSize) break;
-
-      from += pageSize;
-    }
-
-    return allResumes;
+        .range(from, to)
+    );
   };
 
   const fetchStats = async () => {

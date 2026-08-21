@@ -471,6 +471,7 @@
 import { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { supabase } from "../main/supabase";
+import { fetchSupabasePages } from "../main/supabasePagination";
 import { showSnackbar } from "../slice/uiSlice";
 import deleteResume from "../finctions/deleteresume";
 
@@ -512,13 +513,18 @@ export default function Candidates() {
 
   useEffect(() => {
     const fetchDropdownData = async () => {
-      const { data, error } = await supabase
-        .from('job_descriptions')
-        .select('id, title, required_skills, min_experience_years')
-        .order('created_at', { ascending: false });
-        
-      if (!error && data) {
+      try {
+        const data = await fetchSupabasePages((from, to) =>
+          supabase
+            .from('job_descriptions')
+            .select('id, title, required_skills, min_experience_years')
+            .order('created_at', { ascending: false })
+            .range(from, to)
+        );
+
         setJds(data);
+      } catch (error) {
+        console.error("Error fetching JDs:", error.message);
       }
     };
     fetchDropdownData();
@@ -527,12 +533,6 @@ export default function Candidates() {
 
   const fetchResumes = async () => {
     setLoading(true);
-    let query = supabase.from('resumes').select('*');
-    
-    // Keyword search filter
-    if (searchTerm) {
-      query = query.or(`name.ilike.%${searchTerm}%,current_company.ilike.%${searchTerm}%`);
-    }
 
     let requiredSkillsArray = [];
     let requiredExpNum = 0;
@@ -554,10 +554,24 @@ export default function Candidates() {
 
     // WE REMOVED .overlaps() HERE! 
     // We want the database to return everyone so our smart JS can rank them properly.
+    let allResumes = [];
 
-    const { data, error } = await query;
+    try {
+      allResumes = await fetchSupabasePages((from, to) => {
+        let query = supabase
+          .from('resumes')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(from, to);
 
-    if (error) {
+        // Keyword search filter
+        if (searchTerm) {
+          query = query.or(`name.ilike.%${searchTerm}%,current_company.ilike.%${searchTerm}%`);
+        }
+
+        return query;
+      });
+    } catch (error) {
       console.error("Error fetching resumes:", error.message);
       setLoading(false);
       return;
@@ -565,7 +579,7 @@ export default function Candidates() {
 
     setFeedbackDrafts(
       Object.fromEntries(
-        (data || []).map((resume) => [
+        allResumes.map((resume) => [
           resume.id,
           resume.interview_feedback || "",
         ])
@@ -573,7 +587,7 @@ export default function Candidates() {
     );
 
     // --- UPGRADED "FUZZY" SCORING ALGORITHM ---
-    const scoredResumes = (data || []).map(resume => {
+    const scoredResumes = allResumes.map(resume => {
       let skillMatchScore = 100;
       let missingSkills = []; 
 
