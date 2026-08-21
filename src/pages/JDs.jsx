@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { supabase } from "../main/supabase";
+import { fetchSupabasePages } from "../main/supabasePagination";
 import { showSnackbar } from "../slice/uiSlice";
 import deleteJd from "../finctions/deletejd";
 import JDUploader from "../components/JDUploader";
@@ -13,17 +14,21 @@ export default function JDs() {
 
   const fetchJds = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("job_descriptions")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const data = await fetchSupabasePages((from, to) =>
+        supabase
+          .from("job_descriptions")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, to)
+      );
 
-    if (error) {
-      console.error("Error fetching JDs:", error.message);
-    } else {
       setJds(data || []);
+    } catch (error) {
+      console.error("Error fetching JDs:", error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
