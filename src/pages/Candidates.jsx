@@ -496,6 +496,9 @@ export default function Candidates() {
   const [selectedJdId, setSelectedJdId] = useState(""); 
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState("");
+  const [feedbackDrafts, setFeedbackDrafts] = useState({});
+  const [savingFeedbackId, setSavingFeedbackId] = useState("");
+  const [updatingInterviewId, setUpdatingInterviewId] = useState("");
   
   const [searchTerm, setSearchTerm] = useState(''); 
   const [skillsInput, setSkillsInput] = useState(''); 
@@ -504,6 +507,7 @@ export default function Candidates() {
   const [matchMode, setMatchMode] = useState("fuzzy");
   const [requirementRule, setRequirementRule] = useState("rank");
   const [minimumMatchScore, setMinimumMatchScore] = useState("");
+  const [interviewFilter, setInterviewFilter] = useState("all");
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -558,6 +562,15 @@ export default function Candidates() {
       setLoading(false);
       return;
     }
+
+    setFeedbackDrafts(
+      Object.fromEntries(
+        (data || []).map((resume) => [
+          resume.id,
+          resume.interview_feedback || "",
+        ])
+      )
+    );
 
     // --- UPGRADED "FUZZY" SCORING ALGORITHM ---
     const scoredResumes = (data || []).map(resume => {
@@ -634,6 +647,14 @@ export default function Candidates() {
         return false;
       }
 
+      if (interviewFilter === "interviewed" && !resume.interview_taken) {
+        return false;
+      }
+
+      if (interviewFilter === "not_interviewed" && resume.interview_taken) {
+        return false;
+      }
+
       return true;
     });
 
@@ -653,6 +674,96 @@ export default function Candidates() {
   const getDownloadUrl = (url) => {
     if (!url) return "#";
     return url.replace('/upload/', '/upload/fl_attachment/');
+  };
+
+  const handleInterviewToggle = async (resume) => {
+    const nextInterviewTaken = !resume.interview_taken;
+
+    try {
+      setUpdatingInterviewId(resume.id);
+      const { data, error } = await supabase
+        .from("resumes")
+        .update({ interview_taken: nextInterviewTaken })
+        .eq("id", resume.id)
+        .select("id, interview_taken")
+        .single();
+
+      if (error) throw error;
+
+      setResumes((currentResumes) =>
+        currentResumes.map((currentResume) =>
+          currentResume.id === resume.id
+            ? {
+                ...currentResume,
+                interview_taken:
+                  data?.interview_taken ?? nextInterviewTaken,
+              }
+            : currentResume
+        )
+      );
+
+      dispatch(
+        showSnackbar({
+          message: nextInterviewTaken
+            ? "Candidate marked as interviewed"
+            : "Interview tag removed",
+          type: "success",
+        })
+      );
+    } catch (error) {
+      dispatch(
+        showSnackbar({
+          message: error.message || "Failed to update interview status",
+          type: "error",
+        })
+      );
+    } finally {
+      setUpdatingInterviewId("");
+    }
+  };
+
+  const handleFeedbackSave = async (resume) => {
+    const feedback = feedbackDrafts[resume.id] || "";
+
+    try {
+      setSavingFeedbackId(resume.id);
+      const { data, error } = await supabase
+        .from("resumes")
+        .update({ interview_feedback: feedback })
+        .eq("id", resume.id)
+        .select("id, interview_feedback")
+        .single();
+
+      if (error) throw error;
+
+      setResumes((currentResumes) =>
+        currentResumes.map((currentResume) =>
+          currentResume.id === resume.id
+            ? {
+                ...currentResume,
+                interview_feedback:
+                  data?.interview_feedback ?? feedback,
+              }
+            : currentResume
+        )
+      );
+
+      dispatch(
+        showSnackbar({
+          message: "Candidate feedback saved",
+          type: "success",
+        })
+      );
+    } catch (error) {
+      dispatch(
+        showSnackbar({
+          message: error.message || "Failed to save feedback",
+          type: "error",
+        })
+      );
+    } finally {
+      setSavingFeedbackId("");
+    }
   };
 
   const handleDeleteResume = async (resume) => {
@@ -741,7 +852,7 @@ export default function Candidates() {
           </select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-3">
           <input 
             type="text" 
             placeholder="Required Skills (comma separated)" 
@@ -774,6 +885,15 @@ export default function Candidates() {
             onChange={(e) => setMinimumMatchScore(e.target.value)}
             className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
           />
+          <select
+            value={interviewFilter}
+            onChange={(e) => setInterviewFilter(e.target.value)}
+            className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
+          >
+            <option value="all">All Interview Statuses</option>
+            <option value="interviewed">Interviewed Only</option>
+            <option value="not_interviewed">Not Interviewed Only</option>
+          </select>
         </div>
 
         {selectedJdId && (
@@ -795,8 +915,17 @@ export default function Candidates() {
           <div key={resume.id} className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm flex flex-col md:flex-row justify-between items-start hover:shadow-md transition">
             
             <div className="flex-1">
-              <div className="flex items-center gap-4 mb-2">
+              <div className="flex flex-wrap items-center gap-3 mb-2">
                 <h3 className="text-xl font-bold text-gray-900">{resume.name}</h3>
+                <span
+                  className={`text-xs px-2.5 py-1 rounded-md border font-semibold ${
+                    resume.interview_taken
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                      : "bg-amber-50 text-amber-700 border-amber-100"
+                  }`}
+                >
+                  {resume.interview_taken ? "Interviewed" : "Not Interviewed"}
+                </span>
 
                 <div className="flex items-center gap-2">
                   {resume.resume_url && (
@@ -841,6 +970,52 @@ export default function Candidates() {
                   </div>
                 </div>
               )}
+
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">
+                    Interview Feedback
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleInterviewToggle(resume)}
+                    disabled={updatingInterviewId === resume.id}
+                    className={`text-xs px-3 py-1.5 rounded-md border transition font-medium disabled:opacity-60 disabled:cursor-not-allowed ${
+                      resume.interview_taken
+                        ? "bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
+                        : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                    }`}
+                  >
+                    {updatingInterviewId === resume.id
+                      ? "Updating..."
+                      : resume.interview_taken
+                      ? "Mark Not Interviewed"
+                      : "Mark Interviewed"}
+                  </button>
+                </div>
+                <textarea
+                  value={feedbackDrafts[resume.id] ?? ""}
+                  onChange={(e) =>
+                    setFeedbackDrafts((currentDrafts) => ({
+                      ...currentDrafts,
+                      [resume.id]: e.target.value,
+                    }))
+                  }
+                  placeholder="Add interview comments, feedback, or next steps..."
+                  rows={3}
+                  className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none transition resize-y"
+                />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => handleFeedbackSave(resume)}
+                    disabled={savingFeedbackId === resume.id}
+                    className="text-xs bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 transition font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {savingFeedbackId === resume.id ? "Saving..." : "Save Feedback"}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className={`mt-4 md:mt-0 md:ml-6 px-5 py-3 rounded-xl font-bold text-xl text-center shrink-0 ${getScoreColor(resume.overallScore)}`}>
