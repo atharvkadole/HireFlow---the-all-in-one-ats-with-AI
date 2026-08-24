@@ -13,6 +13,7 @@ import Signup from "../pages/Signup";
 import Dashboard from "../pages/Dashboard";
 import DashboardHome from "../pages/DashboardHome"; 
 import Candidates from "../pages/Candidates";
+import DuplicateResumes from "../pages/DuplicateResumes";
 import JDs from "../pages/JDs";
 import Settings from "../pages/Settings";
 
@@ -61,6 +62,7 @@ function App() {
           
           {/* Nested routes mapped to the sidebar */}
           <Route path="candidates" element={<Candidates />} />
+          <Route path="duplicate-resumes" element={<DuplicateResumes />} />
           <Route path="jds" element={<JDs />} />
           <Route path="settings" element={<Settings />} />
         </Route>
