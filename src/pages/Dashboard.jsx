@@ -7,6 +7,7 @@ import nyxsesLogo from "../assets/nyxses-logo.jpg";
 import {
   HiOutlineHome,
   HiOutlineUsers,
+  HiOutlineDuplicate,
   HiOutlineDocumentText,
   HiOutlineCog,
   HiOutlineMenuAlt2,
@@ -33,6 +34,7 @@ export default function Dashboard() {
   // Helper function to dynamically set the header title based on the URL
   const getHeaderTitle = () => {
     const path = location.pathname;
+    if (path.includes("/duplicate-resumes")) return "Duplicate Resumes";
     if (path.includes("/candidates")) return "Candidates";
     if (path.includes("/jds")) return "Job Descriptions";
     if (path.includes("/settings")) return "Settings";
@@ -54,6 +56,7 @@ export default function Dashboard() {
           {/* Using NavLink and defining the path */}
           <SidebarItem icon={<HiOutlineHome size={20} />} label="Dashboard" path="/" collapsed={collapsed} />
           <SidebarItem icon={<HiOutlineUsers size={20} />} label="Candidates" path="/candidates" collapsed={collapsed} />
+          <SidebarItem icon={<HiOutlineDuplicate size={20} />} label="Duplicate Resumes" path="/duplicate-resumes" collapsed={collapsed} />
           <SidebarItem icon={<HiOutlineDocumentText size={20} />} label="JDs" path="/jds" collapsed={collapsed} />
           <SidebarItem icon={<HiOutlineCog size={20} />} label="Settings" path="/settings" collapsed={collapsed} />
         </ul>
