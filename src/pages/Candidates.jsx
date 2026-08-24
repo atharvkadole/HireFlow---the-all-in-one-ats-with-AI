@@ -491,6 +491,12 @@ const matchesSkill = (candidateSkill, targetSkill, matchMode) => {
   );
 };
 
+const normalizeSearchText = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
 export default function Candidates() {
   const [resumes, setResumes] = useState([]);
   const [jds, setJds] = useState([]); 
@@ -551,6 +557,7 @@ export default function Candidates() {
       ? normalizeSkillInput(excludeSkillsInput)
       : [];
     const minimumScoreNum = Number(minimumMatchScore) || 0;
+    const normalizedSearchTerm = normalizeSearchText(searchTerm);
 
     // WE REMOVED .overlaps() HERE! 
     // We want the database to return everyone so our smart JS can rank them properly.
@@ -558,18 +565,11 @@ export default function Candidates() {
 
     try {
       allResumes = await fetchSupabasePages((from, to) => {
-        let query = supabase
+        return supabase
           .from('resumes')
           .select('*')
           .order('created_at', { ascending: false })
           .range(from, to);
-
-        // Keyword search filter
-        if (searchTerm) {
-          query = query.or(`name.ilike.%${searchTerm}%,current_company.ilike.%${searchTerm}%`);
-        }
-
-        return query;
       });
     } catch (error) {
       console.error("Error fetching resumes:", error.message);
@@ -649,6 +649,16 @@ export default function Candidates() {
         excludedMatches,
       };
     }).filter((resume) => {
+      if (normalizedSearchTerm) {
+        const searchableCandidate = normalizeSearchText(
+          `${resume.name || ""} ${resume.current_company || ""}`
+        );
+
+        if (!searchableCandidate.includes(normalizedSearchTerm)) {
+          return false;
+        }
+      }
+
       if (requirementRule === "all" && requiredSkillsArray.length > 0 && resume.missingSkills.length > 0) {
         return false;
       }
